@@ -8,7 +8,7 @@ from typing import Dict, List, Tuple, Optional
 import pandas as pd
 import streamlit as st
 from textblob import TextBlob
-from googletrans import Translator
+from deep_translator import GoogleTranslator, single_detection
 
 # ───────────────────────────────────────────────────────────────
 # CONFIGURACIÓN GENERAL
@@ -60,14 +60,9 @@ if "history" not in st.session_state:
     st.session_state.history: List[Dict] = []
 
 @st.cache_resource(show_spinner=False)
-def get_translator() -> Translator:
-    # Intentamos varios endpoints para mayor resiliencia
-    return Translator(service_urls=[
-        "translate.googleapis.com",
-        "translate.google.com",
-        "translate.google.com.co",
-        "translate.google.es",
-    ])
+def get_translator():
+    # No necesita endpoints manuales, deep-translator usa la API pública de Google
+    return GoogleTranslator(source='auto', target='en')
 
 translator = get_translator()
 
@@ -76,9 +71,8 @@ def cached_detect(text: str) -> str:
     if not text.strip():
         return "und"
     try:
-        return translator.detect(text).lang or "und"
+        return single_detection(text, api_key=None) or "und"
     except Exception:
-        # fallback muy básico: heurística
         if re.search(r"[áéíóúñ¿¡]", text.lower()):
             return "es"
         return "en"
@@ -88,11 +82,8 @@ def cached_translate(text: str, src: Optional[str], dest: str) -> str:
     if not text.strip():
         return text
     try:
-        if src and src != "auto":
-            return translator.translate(text, src=src, dest=dest).text
-        return translator.translate(text, dest=dest).text
+        return GoogleTranslator(source=src or 'auto', target=dest).translate(text)
     except Exception:
-        # fallback: devolvemos texto original si falla la traducción
         return text
 
 # ───────────────────────────────────────────────────────────────
